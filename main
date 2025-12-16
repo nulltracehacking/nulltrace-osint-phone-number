@@ -1,0 +1,1502 @@
+#!/usr/bin/env python3
+"""
+██████╗ ██╗   ██╗██╗     ██╗      ████████╗██████╗  █████╗  ██████╗███████╗
+██╔══██╗██║   ██║██║     ██║      ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██╔════╝
+██║  ██║██║   ██║██║     ██║         ██║   ██████╔╝███████║██║     █████╗  
+██║  ██║██║   ██║██║     ██║         ██║   ██╔══██╗██╔══██║██║     ██╔══╝  
+██████╔╝╚██████╔╝███████╗███████╗    ██║   ██║  ██║██║  ██║╚██████╗███████╗
+╚═════╝  ╚═════╝ ╚══════╝╚══════╝    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
+                        NULLTRACE v2.0 - ELITE OSINT
+                     For Authorized Security Research
+"""
+
+import os
+import sys
+import json
+import re
+import time
+import socket
+import asyncio
+import random
+import hashlib
+import secrets
+from datetime import datetime
+from urllib.parse import quote, urlencode
+from typing import Dict, List, Optional
+import aiohttp
+import phonenumbers
+
+class Color:
+    """Terminal colors"""
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
+class NullTrace:
+    """Elite Phone OSINT Tool v2.0"""
+    
+    def __init__(self):
+        self.phone = None
+        self.phone_no_plus = ""
+        self.session_id = secrets.token_hex(8)
+        
+        # API Configuration
+        self.apis = {
+            'veriphone': '',  # Free 1000/month at veriphone.io
+            'numverify': '',  # Your own key
+            'ipqs': '',       # ipqualityscore.com
+            'hibp': '',       # HaveIBeenPwned API key
+        }
+        
+        # User Agents for rotation
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        ]
+        
+        self.results = {
+            'phone': '',
+            'session': self.session_id,
+            'timestamp': datetime.now().isoformat(),
+            'metadata': {},
+            'messaging': {},
+            'footprint': {},
+            'breaches': [],
+            'reputation': {},
+            'confidence': 0,
+            'scan_type': '',
+            'scan_time': 0
+        }
+    
+    def clear_screen(self):
+        """Clear terminal screen"""
+        os.system('cls' if os.name == 'nt' else 'clear')
+    
+    def show_logo(self):
+        """Display NullTrace logo"""
+        self.clear_screen()
+        print(f"{Color.BLUE}{'='*70}{Color.END}")
+        print(f"{Color.BOLD}{Color.CYAN}███╗   ██╗██╗   ██╗██╗     ██╗      ████████╗██████╗  █████╗  ██████╗███████╗{Color.END}")
+        print(f"{Color.BOLD}{Color.CYAN}████╗  ██║██║   ██║██║     ██║      ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██╔════╝{Color.END}")
+        print(f"{Color.BOLD}{Color.CYAN}██╔██╗ ██║██║   ██║██║     ██║         ██║   ██████╔╝███████║██║     █████╗  {Color.END}")
+        print(f"{Color.BOLD}{Color.CYAN}██║╚██╗██║██║   ██║██║     ██║         ██║   ██╔══██╗██╔══██║██║     ██╔══╝  {Color.END}")
+        print(f"{Color.BOLD}{Color.CYAN}██║ ╚████║╚██████╔╝███████╗███████╗    ██║   ██║  ██║██║  ██║╚██████╗███████╗{Color.END}")
+        print(f"{Color.BOLD}{Color.CYAN}╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚══════╝    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝{Color.END}")
+        print(f"{Color.BOLD}{Color.YELLOW}                    v2.0 - ELITE PHONE OSINT{Color.END}")
+        print(f"{Color.BOLD}{Color.RED}               For Authorized Security Research Only{Color.END}")
+        print(f"{Color.BLUE}{'='*70}{Color.END}")
+        print()
+    
+    def show_menu(self):
+        """Display main menu"""
+        self.show_logo()
+        print(f"{Color.BOLD}{Color.GREEN}[MAIN MENU]{Color.END}")
+        print(f"{Color.CYAN}{'─'*50}{Color.END}")
+        print(f"{Color.YELLOW}[1]{Color.END} {Color.BOLD}Quick Scan (Basic Info & Apps){Color.END}")
+        print(f"{Color.YELLOW}[2]{Color.END} {Color.BOLD}Full Investigation (Complete OSINT){Color.END}")
+        print(f"{Color.YELLOW}[3]{Color.END} {Color.BOLD}Configure API Keys{Color.END}")
+        print(f"{Color.YELLOW}[4]{Color.END} {Color.BOLD}View Saved Reports{Color.END}")
+        print(f"{Color.YELLOW}[5]{Color.END} {Color.BOLD}About & Documentation{Color.END}")
+        print(f"{Color.YELLOW}[6]{Color.END} {Color.BOLD}Exit{Color.END}")
+        print(f"{Color.CYAN}{'─'*50}{Color.END}")
+        print()
+    
+    def clean_phone(self, phone: str) -> str:
+        """Clean and validate phone number"""
+        try:
+            parsed = phonenumbers.parse(phone, None)
+            return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+        except:
+            cleaned = re.sub(r'[^\d+]', '', phone)
+            if cleaned and not cleaned.startswith('+'):
+                cleaned = '+' + cleaned
+            return cleaned
+    
+    def get_random_headers(self) -> Dict:
+        """Get random headers for request rotation"""
+        return {
+            'User-Agent': random.choice(self.user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+    
+    async def rate_limit(self):
+        """Rate limiting between requests"""
+        await asyncio.sleep(random.uniform(0.5, 1.5))
+    
+    # ===== ENHANCED METADATA LOOKUP =====
+    async def get_metadata(self) -> Dict:
+        """Get enhanced metadata using best available API"""
+        metadata = {}
+        
+        # Try Veriphone first (best free tier)
+        veriphone_data = await self.veriphone_lookup()
+        if veriphone_data:
+            metadata.update(veriphone_data)
+            metadata['source'] = 'veriphone'
+        
+        # Fallback to Numverify if available
+        if not metadata.get('carrier') and self.apis['numverify']:
+            numverify_data = await self.numverify_lookup()
+            if numverify_data:
+                metadata.update(numverify_data)
+                metadata['source'] = 'numverify'
+        
+        # Fallback to IPQS if available
+        if not metadata.get('carrier') and self.apis['ipqs']:
+            ipqs_data = await self.ipqs_lookup()
+            if ipqs_data:
+                metadata.update(ipqs_data)
+                metadata['source'] = 'ipqs'
+        
+        # Basic detection as last resort
+        if not metadata:
+            metadata = await self.basic_detection()
+            metadata['source'] = 'heuristics'
+        
+        # Detect line type with improved patterns
+        metadata['line_type'] = self.detect_line_type()
+        
+        # Country detection
+        metadata['country'] = self.get_country_from_code()
+        
+        # Risk assessment
+        metadata['risk_assessment'] = self.assess_risk(metadata)
+        
+        return metadata
+    
+    async def veriphone_lookup(self) -> Dict:
+        """Veriphone.io API - 1000 free/month"""
+        try:
+            api_key = self.apis['veriphone'] or 'free'
+            url = f"https://api.veriphone.io/v2/verify?phone={self.phone}&key={api_key}"
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=self.get_random_headers()) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get('phone_valid'):
+                            return {
+                                'carrier': data.get('carrier', 'Unknown'),
+                                'type': data.get('phone_type', 'Unknown'),
+                                'country': data.get('country', 'Unknown'),
+                                'country_code': data.get('country_code', 'Unknown'),
+                                'valid': True,
+                                'format_national': data.get('format_national', ''),
+                                'format_international': data.get('format_international', ''),
+                            }
+        except:
+            pass
+        return {}
+    
+    async def numverify_lookup(self) -> Dict:
+        """Numverify API"""
+        try:
+            api_key = self.apis['numverify']
+            url = f"http://apilayer.net/api/validate?access_key={api_key}&number={self.phone}"
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=self.get_random_headers()) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get('valid'):
+                            return {
+                                'carrier': data.get('carrier', 'Unknown'),
+                                'line_type': data.get('line_type', 'Unknown'),
+                                'country': data.get('country_name', 'Unknown'),
+                                'location': data.get('location', 'Unknown'),
+                                'valid': True,
+                            }
+        except:
+            pass
+        return {}
+    
+    async def basic_detection(self) -> Dict:
+        """Basic phone detection when APIs fail"""
+        info = {}
+        
+        # Simple country detection
+        country = self.get_country_from_code()
+        if country != 'Unknown':
+            info['country'] = country
+        
+        # Carrier prefix detection for common countries
+        if self.phone.startswith('+1'):
+            info['carrier'] = 'US/Canada Carrier'
+        elif self.phone.startswith('+44'):
+            info['carrier'] = 'UK Carrier'
+        elif self.phone.startswith('+33'):
+            info['carrier'] = 'France Carrier'
+        
+        return info
+    
+    def detect_line_type(self) -> str:
+        """Enhanced line type detection"""
+        patterns = {
+            'mobile': [
+                (r'\+44(7[1-9]\d{8})$', 'UK Mobile'),
+                (r'\+1(\d{10})$', 'US/CA Mobile'),
+                (r'\+33([67]\d{8})$', 'FR Mobile'),
+                (r'\+49(1[5-9]\d{8,9})$', 'DE Mobile'),
+                (r'\+91([6-9]\d{9})$', 'IN Mobile'),
+                (r'\+86(1[3-9]\d{9})$', 'CN Mobile'),
+                (r'\+81([7-9]0\d{8})$', 'JP Mobile'),
+                (r'\+61(4\d{8})$', 'AU Mobile'),
+            ],
+            'landline': [
+                (r'\+44(1\d{9,10})$', 'UK Landline'),
+                (r'\+44(2\d{9})$', 'UK London'),
+                (r'\+44(3\d{9})$', 'UK Non-Geographic'),
+                (r'\+1(\d{3}\d{7})$', 'US/CA Landline'),
+                (r'\+33([1-5]\d{8})$', 'FR Landline'),
+            ],
+            'voip': [
+                (r'\+44(5\d{9})$', 'UK VoIP'),
+                (r'\+44(76\d{8})$', 'UK Mobile VoIP'),
+                (r'\+1(5\d{9})$', 'US VoIP'),
+                (r'\+447(7[0-9]\d{7})$', 'UK Premium VoIP'),
+            ],
+            'toll_free': [
+                (r'\+1(800|888|877|866|855|844)\d{7}$', 'US Toll-Free'),
+                (r'\+44800\d{7}$', 'UK Toll-Free'),
+                (r'\+44808\d{7}$', 'UK Business'),
+                (r'\+44850\d{7}$', 'UK Freephone'),
+            ],
+            'premium': [
+                (r'\+44(9\d{9})$', 'UK Premium'),
+                (r'\+1(900)\d{7}$', 'US Premium'),
+                (r'\+44(70\d{8})$', 'UK Personal'),
+            ]
+        }
+        
+        for line_type, regex_list in patterns.items():
+            for pattern, description in regex_list:
+                if re.match(pattern, self.phone):
+                    return f"{line_type} ({description})"
+        
+        return 'unknown'
+    
+    def get_country_from_code(self) -> str:
+        """Get country from country code with region"""
+        country_map = {
+            '1': ('US/Canada', 'North America'),
+            '44': ('United Kingdom', 'Europe'),
+            '33': ('France', 'Europe'),
+            '49': ('Germany', 'Europe'),
+            '91': ('India', 'Asia'),
+            '86': ('China', 'Asia'),
+            '61': ('Australia', 'Oceania'),
+            '7': ('Russia/Kazakhstan', 'Europe/Asia'),
+            '81': ('Japan', 'Asia'),
+            '34': ('Spain', 'Europe'),
+            '39': ('Italy', 'Europe'),
+            '82': ('South Korea', 'Asia'),
+            '55': ('Brazil', 'South America'),
+            '52': ('Mexico', 'North America'),
+            '54': ('Argentina', 'South America'),
+            '27': ('South Africa', 'Africa'),
+            '20': ('Egypt', 'Africa'),
+            '234': ('Nigeria', 'Africa'),
+        }
+        
+        for code, (country, region) in country_map.items():
+            if self.phone.startswith(f'+{code}'):
+                return f"{country} ({region})"
+        
+        return 'Unknown'
+    
+    def assess_risk(self, metadata: Dict) -> Dict:
+        """Assess risk based on metadata"""
+        risk_score = 0
+        flags = []
+        
+        line_type = metadata.get('line_type', '').lower()
+        
+        if 'voip' in line_type:
+            risk_score += 40
+            flags.append('voip_number')
+        
+        if 'toll_free' in line_type or 'premium' in line_type:
+            risk_score += 30
+            flags.append('special_rate')
+        
+        if 'unknown' in line_type or not metadata.get('valid', False):
+            risk_score += 20
+            flags.append('unverified')
+        
+        # New number ranges (potential disposable)
+        if self.phone_no_plus.startswith('4476'):
+            risk_score += 15
+            flags.append('newer_uk_range')
+        
+        return {
+            'score': min(risk_score, 100),
+            'level': 'HIGH' if risk_score > 60 else 'MEDIUM' if risk_score > 30 else 'LOW',
+            'flags': flags
+        }
+    
+    # ===== ENHANCED MESSAGING APP CHECKS =====
+    async def check_messaging_apps(self) -> Dict:
+        """Check multiple messaging apps"""
+        apps = {}
+        
+        tasks = [
+            self.check_whatsapp_enhanced(),
+            self.check_telegram_enhanced(),
+            self.check_viber(),
+            self.check_signal(),
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, dict):
+                apps.update(result)
+        
+        return apps
+    
+    async def check_whatsapp_enhanced(self) -> Dict:
+        """Enhanced WhatsApp check with multiple methods"""
+        result = {'whatsapp': {'registered': False, 'confidence': 0}}
+        
+        # Method 1: wa.me redirect
+        try:
+            url = f"https://wa.me/{self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.head(url, headers=headers, allow_redirects=True) as resp:
+                    final_url = str(resp.url)
+                    if 'whatsapp.com' in final_url or 'api.whatsapp.com' in final_url:
+                        result['whatsapp'] = {
+                            'registered': True,
+                            'url': f"https://wa.me/{self.phone_no_plus}",
+                            'direct_url': f"https://api.whatsapp.com/send?phone={self.phone_no_plus}",
+                            'confidence': 90
+                        }
+                        return result
+        except:
+            pass
+        
+        # Method 2: Check WhatsApp web pattern
+        try:
+            url = f"https://web.whatsapp.com/send?phone={self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.head(url, headers=headers) as resp:
+                    if resp.status in [200, 302]:
+                        result['whatsapp']['confidence'] = 70
+        except:
+            pass
+        
+        return result
+    
+    async def check_telegram_enhanced(self) -> Dict:
+        """Enhanced Telegram check"""
+        result = {'telegram': {'possible': False, 'confidence': 0}}
+        
+        # Method 1: t.me
+        try:
+            url = f"https://t.me/{self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.head(url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status in [200, 302]:
+                        result['telegram'] = {
+                            'possible': True,
+                            'url': f"https://t.me/{self.phone_no_plus}",
+                            'confidence': 60
+                        }
+        except:
+            pass
+        
+        # Method 2: telegram.me
+        try:
+            url = f"https://telegram.me/{self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.head(url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status == 200:
+                        result['telegram']['confidence'] = max(result['telegram'].get('confidence', 0), 50)
+        except:
+            pass
+        
+        return result
+    
+    async def check_viber(self) -> Dict:
+        """Check Viber"""
+        try:
+            # Viber uses viber:// URI scheme
+            # Check via Viber's web interface
+            url = f"https://chats.viber.com/{self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.head(url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status == 200:
+                        return {
+                            'viber': {
+                                'possible': True,
+                                'url': f"viber://chat?number={self.phone_no_plus}",
+                                'confidence': 50
+                            }
+                        }
+        except:
+            pass
+        
+        return {'viber': {'possible': False, 'confidence': 30}}
+    
+    async def check_signal(self) -> Dict:
+        """Check Signal"""
+        try:
+            # Signal uses signal.me links
+            url = f"https://signal.me/#p/{self.phone}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.head(url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status == 200:
+                        return {
+                            'signal': {
+                                'format_valid': True,
+                                'url': f"https://signal.me/#p/{self.phone}",
+                                'note': 'Signal registration not publicly visible',
+                                'confidence': 40
+                            }
+                        }
+        except:
+            pass
+        
+        return {'signal': {'format_valid': False, 'confidence': 20}}
+    
+    # ===== FOOTPRINT ANALYSIS (REPLACES IP CORRELATION) =====
+    async def analyze_footprint(self) -> Dict:
+        """Analyze online footprint for usernames, emails, profiles"""
+        footprint = {
+            'usernames': set(),
+            'emails': set(),
+            'social_profiles': [],
+            'mentions': 0,
+            'sources': []
+        }
+        
+        tasks = [
+            self.search_google_footprint(),
+            self.search_pastes(),
+            self.search_social_media(),
+            self.search_forums(),
+            self.search_github(),
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, dict):
+                footprint['usernames'].update(result.get('usernames', []))
+                footprint['emails'].update(result.get('emails', []))
+                footprint['social_profiles'].extend(result.get('profiles', []))
+                footprint['mentions'] += result.get('mentions', 0)
+                if result.get('source'):
+                    footprint['sources'].append(result['source'])
+        
+        # Convert sets to lists
+        footprint['usernames'] = list(footprint['usernames'])
+        footprint['emails'] = list(footprint['emails'])
+        
+        return footprint
+    
+    async def search_google_footprint(self) -> Dict:
+        """Search Google for phone footprint"""
+        result = {'usernames': set(), 'emails': set(), 'profiles': [], 'mentions': 0, 'source': 'google'}
+        
+        search_queries = [
+            f'"{self.phone}"',
+            f'"{self.phone_no_plus}"',
+            f'"{self.phone}" site:pastebin.com OR site:github.com OR site:twitter.com',
+            f'"{self.phone}" "username" OR "email" OR "contact"',
+        ]
+        
+        for query in search_queries[:2]:  # Limit to 2 queries
+            try:
+                await self.rate_limit()
+                
+                url = f"https://www.google.com/search?q={quote(query)}&num=5"
+                headers = self.get_random_headers()
+                
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                    async with session.get(url, headers=headers) as resp:
+                        if resp.status == 200:
+                            html = await resp.text()
+                            
+                            # Count mentions
+                            mentions = html.count(self.phone) + html.count(self.phone_no_plus)
+                            result['mentions'] += mentions
+                            
+                            # Extract usernames
+                            username_patterns = [
+                                r'@([a-zA-Z0-9_]{3,20})',
+                                r'username[:\s=]+([a-zA-Z0-9_]{3,20})',
+                                r'user[:\s=]+([a-zA-Z0-9_]{3,20})',
+                                r'login[:\s=]+([a-zA-Z0-9_]{3,20})',
+                            ]
+                            
+                            for pattern in username_patterns:
+                                matches = re.findall(pattern, html, re.IGNORECASE)
+                                result['usernames'].update(matches)
+                            
+                            # Extract emails
+                            email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+                            emails = re.findall(email_pattern, html)
+                            result['emails'].update(emails)
+                            
+                            # Extract social profiles
+                            social_patterns = [
+                                r'facebook\.com/([a-zA-Z0-9.]+)',
+                                r'twitter\.com/([a-zA-Z0-9_]+)',
+                                r'linkedin\.com/in/([a-zA-Z0-9-]+)',
+                                r'instagram\.com/([a-zA-Z0-9._]+)',
+                                r'github\.com/([a-zA-Z0-9-]+)',
+                            ]
+                            
+                            for pattern in social_patterns:
+                                matches = re.findall(pattern, html)
+                                for match in matches:
+                                    if match and len(match) > 2:
+                                        domain = pattern.split('\.com/')[0]
+                                        result['profiles'].append(f"https://{domain}.com/{match}")
+            except:
+                continue
+        
+        # Convert sets to lists
+        result['usernames'] = list(result['usernames'])
+        result['emails'] = list(result['emails'])
+        
+        return result
+    
+    async def search_pastes(self) -> Dict:
+        """Search paste sites"""
+        result = {'usernames': set(), 'emails': set(), 'profiles': [], 'mentions': 0, 'source': 'pastes'}
+        
+        sites = [
+            ('pastebin.com', 'Pastebin'),
+            ('ghostbin.com', 'Ghostbin'),
+            ('rentry.co', 'Rentry'),
+            ('privatebin.net', 'PrivateBin'),
+        ]
+        
+        for site, name in sites[:2]:  # Limit to 2 sites
+            try:
+                await self.rate_limit()
+                
+                query = quote(f'"{self.phone}" site:{site}')
+                url = f"https://www.google.com/search?q={query}"
+                headers = self.get_random_headers()
+                
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                    async with session.get(url, headers=headers) as resp:
+                        if resp.status == 200:
+                            html = await resp.text()
+                            
+                            if site in html:
+                                result['mentions'] += 1
+                                
+                                # Extract usernames from paste URLs
+                                paste_pattern = f'{site}/([a-zA-Z0-9]+)'
+                                paste_ids = re.findall(paste_pattern, html)
+                                
+                                for paste_id in paste_ids[:3]:
+                                    if len(paste_id) > 5:
+                                        result['usernames'].add(paste_id)
+            except:
+                continue
+        
+        result['usernames'] = list(result['usernames'])
+        result['emails'] = list(result['emails'])
+        
+        return result
+    
+    async def search_social_media(self) -> Dict:
+        """Search social media platforms"""
+        result = {'usernames': set(), 'emails': set(), 'profiles': [], 'mentions': 0, 'source': 'social'}
+        
+        # Search via Nitter (Twitter frontend)
+        try:
+            await self.rate_limit()
+            
+            query = quote(f'"{self.phone}"')
+            url = f"https://nitter.net/search?f=tweets&q={query}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        
+                        # Extract Twitter handles
+                        twitter_pattern = r'@([a-zA-Z0-9_]{1,15})'
+                        handles = re.findall(twitter_pattern, html)
+                        result['usernames'].update(handles)
+                        
+                        # Count mentions
+                        result['mentions'] = html.count(self.phone) + html.count(self.phone_no_plus)
+        except:
+            pass
+        
+        result['usernames'] = list(result['usernames'])
+        
+        return result
+    
+    async def search_forums(self) -> Dict:
+        """Search forums"""
+        result = {'usernames': set(), 'emails': set(), 'profiles': [], 'mentions': 0, 'source': 'forums'}
+        
+        forums = [
+            ('site:reddit.com', 'reddit'),
+            ('site:stackoverflow.com', 'stackoverflow'),
+            ('site:quora.com', 'quora'),
+        ]
+        
+        for forum, name in forums[:2]:
+            try:
+                await self.rate_limit()
+                
+                query = quote(f'"{self.phone}" {forum}')
+                url = f"https://www.google.com/search?q={query}"
+                headers = self.get_random_headers()
+                
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                    async with session.get(url, headers=headers) as resp:
+                        if resp.status == 200:
+                            html = await resp.text()
+                            
+                            # Extract forum usernames
+                            if name == 'reddit':
+                                reddit_pattern = r'reddit\.com/user/([a-zA-Z0-9_-]+)'
+                                users = re.findall(reddit_pattern, html)
+                                result['usernames'].update(users)
+                            
+                            result['mentions'] += html.count(self.phone) + html.count(self.phone_no_plus)
+            except:
+                continue
+        
+        result['usernames'] = list(result['usernames'])
+        
+        return result
+    
+    async def search_github(self) -> Dict:
+        """Search GitHub"""
+        result = {'usernames': set(), 'emails': set(), 'profiles': [], 'mentions': 0, 'source': 'github'}
+        
+        try:
+            await self.rate_limit()
+            
+            query = quote(f'"{self.phone}"')
+            url = f"https://github.com/search?q={query}&type=code"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        
+                        # Extract GitHub usernames
+                        github_pattern = r'github\.com/([a-zA-Z0-9-]+)'
+                        users = re.findall(github_pattern, html)
+                        result['usernames'].update(users)
+                        
+                        result['mentions'] = html.count(self.phone) + html.count(self.phone_no_plus)
+        except:
+            pass
+        
+        result['usernames'] = list(result['usernames'])
+        
+        return result
+    
+    # ===== ENHANCED BREACH CHECKS =====
+    async def check_breaches(self) -> List[Dict]:
+        """Check for breaches with improved methods"""
+        breaches = []
+        
+        tasks = [
+            self.check_breachdirectory(),
+            self.check_google_breaches(),
+        ]
+        
+        # Add HIBP if API key available
+        if self.apis['hibp']:
+            tasks.append(self.check_hibp())
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, list):
+                breaches.extend(result)
+        
+        return breaches
+    
+    async def check_breachdirectory(self) -> List[Dict]:
+        """Check BreachDirectory.org"""
+        try:
+            await self.rate_limit()
+            
+            url = f"https://breachdirectory.org/search_ajax?term={quote(self.phone)}"
+            headers = {
+                **self.get_random_headers(),
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': 'https://breachdirectory.org/',
+            }
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get('result') and len(data['result']) > 0:
+                            return [{
+                                'source': 'breachdirectory',
+                                'type': 'phone_in_breach',
+                                'confidence': 70,
+                                'details': f"Found in {len(data['result'])} breach(es)",
+                                'severity': 'medium'
+                            }]
+        except:
+            pass
+        return []
+    
+    async def check_google_breaches(self) -> List[Dict]:
+        """Google search for breach mentions"""
+        try:
+            await self.rate_limit()
+            
+            query = quote(f'"{self.phone}" breach OR leak OR dump OR "data breach"')
+            url = f"https://www.google.com/search?q={query}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        
+                        if any(word in html.lower() for word in ['breach', 'leak', 'dump', 'compromised']):
+                            return [{
+                                'source': 'google_breach_search',
+                                'type': 'breach_mention',
+                                'confidence': 50,
+                                'details': 'Phone mentioned in breach context',
+                                'severity': 'low'
+                            }]
+        except:
+            pass
+        return []
+    
+    async def check_hibp(self) -> List[Dict]:
+        """Have I Been Pwned check (requires API key)"""
+        try:
+            # Hash the phone number (SHA-1 for HIBP API)
+            phone_hash = hashlib.sha1(self.phone.encode()).hexdigest().upper()
+            prefix = phone_hash[:5]
+            
+            url = f"https://api.pwnedpasswords.com/range/{prefix}"
+            headers = {
+                'User-Agent': 'NullTrace-OSINT-Tool',
+                'hibp-api-key': self.apis['hibp']
+            }
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        data = await resp.text()
+                        if phone_hash[5:] in data:
+                            return [{
+                                'source': 'haveibeenpwned',
+                                'type': 'pwned',
+                                'confidence': 85,
+                                'details': 'Phone hash found in breached databases',
+                                'severity': 'high'
+                            }]
+        except:
+            pass
+        return []
+    
+    # ===== ENHANCED REPUTATION CHECKS =====
+    async def check_reputation(self) -> Dict:
+        """Check reputation with multiple sources"""
+        reputation = {
+            'spam_score': 0,
+            'trust_score': 100,
+            'reports': [],
+            'sources_checked': []
+        }
+        
+        tasks = [
+            self.check_scamcallfighters(),
+            self.check_unknownphone(),
+            self.check_whocalledme(),
+            self.check_truecaller(),
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for result in results:
+            if isinstance(result, dict):
+                if 'spam' in result and result['spam']:
+                    reputation['reports'].append(result)
+                    reputation['spam_score'] += result.get('spam_value', 20)
+                    reputation['trust_score'] -= 15
+                elif 'clean' in result and result['clean']:
+                    reputation['trust_score'] += 10
+                
+                if result.get('source'):
+                    reputation['sources_checked'].append(result['source'])
+        
+        reputation['spam_score'] = min(reputation['spam_score'], 100)
+        reputation['trust_score'] = max(min(reputation['trust_score'], 100), 0)
+        
+        return reputation
+    
+    async def check_scamcallfighters(self) -> Dict:
+        """Check scamcallfighters.com"""
+        try:
+            await self.rate_limit()
+            
+            url = f"https://scamcallfighters.com/search?term={self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        if 'scam' in html.lower() or 'spam' in html.lower():
+                            return {
+                                'source': 'scamcallfighters',
+                                'spam': True,
+                                'spam_value': 30,
+                                'confidence': 70,
+                                'note': 'Listed as potential scam'
+                            }
+        except:
+            pass
+        return {'source': 'scamcallfighters', 'spam': False, 'confidence': 60}
+    
+    async def check_unknownphone(self) -> Dict:
+        """Check unknownphone.com"""
+        try:
+            await self.rate_limit()
+            
+            url = f"https://www.unknownphone.com/phone/{self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        if 'no reports' not in html.lower():
+                            return {
+                                'source': 'unknownphone',
+                                'spam': True,
+                                'spam_value': 25,
+                                'confidence': 65,
+                                'note': 'Reports found for this number'
+                            }
+                        else:
+                            return {
+                                'source': 'unknownphone',
+                                'clean': True,
+                                'confidence': 80,
+                                'note': 'No reports found'
+                            }
+        except:
+            pass
+        return {'source': 'unknownphone', 'spam': False, 'confidence': 50}
+    
+    async def check_whocalledme(self) -> Dict:
+        """Check WhoCalledMe"""
+        try:
+            await self.rate_limit()
+            
+            url = f"https://whocalledme.us/phone/{self.phone_no_plus}"
+            headers = self.get_random_headers()
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        if 'spam' in html.lower() or 'scam' in html.lower():
+                            return {
+                                'source': 'whocalledme',
+                                'spam': True,
+                                'spam_value': 20,
+                                'confidence': 60,
+                                'note': 'Potential spam reports'
+                            }
+        except:
+            pass
+        return {'source': 'whocalledme', 'spam': False, 'confidence': 50}
+    
+    async def check_truecaller(self) -> Dict:
+        """Check Truecaller via web"""
+        try:
+            await self.rate_limit()
+            
+            url = f"https://www.truecaller.com/search/in/{self.phone_no_plus}"
+            headers = {
+                **self.get_random_headers(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            }
+            
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(10)) as session:
+                async with session.get(url, headers=headers, allow_redirects=True) as resp:
+                    if resp.status == 200:
+                        html = await resp.text()
+                        
+                        # Look for name in response
+                        name_patterns = [
+                            r'<h1[^>]*>([^<]+)</h1>',
+                            r'"name":"([^"]+)"',
+                            r'<title>([^<]+)</title>',
+                        ]
+                        
+                        for pattern in name_patterns:
+                            match = re.search(pattern, html)
+                            if match:
+                                name = match.group(1).strip()
+                                if name and len(name) > 2 and name.lower() not in ['truecaller', 'search']:
+                                    return {
+                                        'source': 'truecaller',
+                                        'name': name,
+                                        'confidence': 75,
+                                        'note': f'Possible name: {name}'
+                                    }
+        except:
+            pass
+        return {'source': 'truecaller', 'confidence': 40}
+    
+    # ===== CONFIDENCE CALCULATION =====
+    def calculate_confidence(self) -> int:
+        """Calculate overall confidence score"""
+        score = 50  # Base score
+        
+        # Metadata quality
+        meta = self.results['metadata']
+        if meta.get('valid'):
+            score += 15
+        if meta.get('source') in ['veriphone', 'numverify']:
+            score += 10
+        
+        # Messaging apps
+        apps = self.results['messaging']
+        if apps.get('whatsapp', {}).get('registered'):
+            score += 10
+        if apps.get('telegram', {}).get('possible'):
+            score += 5
+        
+        # Footprint findings
+        footprint = self.results['footprint']
+        if footprint.get('usernames'):
+            score += min(len(footprint['usernames']) * 3, 15)
+        if footprint.get('emails'):
+            score += min(len(footprint['emails']) * 5, 15)
+        if footprint.get('mentions', 0) > 0:
+            score += min(footprint['mentions'] * 2, 10)
+        
+        # Breaches
+        if self.results['breaches']:
+            score += min(len(self.results['breaches']) * 8, 20)
+        
+        # Reputation data
+        rep = self.results['reputation']
+        if rep.get('sources_checked'):
+            score += min(len(rep['sources_checked']) * 3, 10)
+        
+        return min(max(score, 0), 100)
+    
+    # ===== SCAN FUNCTIONS =====
+    async def quick_scan(self):
+        """Quick scan - basic info only"""
+        start_time = time.time()
+        
+        print(f"\n{Color.CYAN}Running Quick Scan...{Color.END}")
+        
+        # Get metadata
+        print(f"{Color.YELLOW}✓{Color.END} Gathering metadata...")
+        self.results['metadata'] = await self.get_metadata()
+        await self.rate_limit()
+        
+        # Check messaging apps
+        print(f"{Color.YELLOW}✓{Color.END} Checking messaging apps...")
+        self.results['messaging'] = await self.check_messaging_apps()
+        await self.rate_limit()
+        
+        # Basic reputation check
+        print(f"{Color.YELLOW}✓{Color.END} Checking reputation...")
+        self.results['reputation'] = await self.check_reputation()
+        
+        self.results['scan_time'] = time.time() - start_time
+        self.results['scan_type'] = 'quick'
+        self.results['confidence'] = self.calculate_confidence()
+        
+        return self.results
+    
+    async def full_scan(self):
+        """Full investigation - complete OSINT"""
+        start_time = time.time()
+        
+        print(f"\n{Color.CYAN}Running Full Investigation...{Color.END}")
+        
+        # Progress tracking
+        steps = [
+            ("Gathering metadata", self.get_metadata),
+            ("Checking messaging apps", self.check_messaging_apps),
+            ("Analyzing online footprint", self.analyze_footprint),
+            ("Checking data breaches", self.check_breaches),
+            ("Analyzing reputation", self.check_reputation),
+        ]
+        
+        for i, (desc, func) in enumerate(steps, 1):
+            print(f"{Color.YELLOW}[{i}/{len(steps)}]{Color.END} {desc}...")
+            result = await func()
+            
+            if desc == "Gathering metadata":
+                self.results['metadata'] = result
+            elif desc == "Checking messaging apps":
+                self.results['messaging'] = result
+            elif desc == "Analyzing online footprint":
+                self.results['footprint'] = result
+            elif desc == "Checking data breaches":
+                self.results['breaches'] = result
+            elif desc == "Analyzing reputation":
+                self.results['reputation'] = result
+            
+            await self.rate_limit()
+        
+        self.results['scan_time'] = time.time() - start_time
+        self.results['scan_type'] = 'full'
+        self.results['confidence'] = self.calculate_confidence()
+        
+        return self.results
+    
+    # ===== REPORT GENERATION =====
+    def generate_report(self) -> str:
+        """Generate professional report"""
+        lines = []
+        
+        # Header
+        lines.append(f"{Color.BLUE}{'='*70}{Color.END}")
+        lines.append(f"{Color.BOLD}{Color.CYAN}                   NULLTRACE v2.0 - OSINT REPORT{Color.END}")
+        lines.append(f"{Color.BLUE}{'='*70}{Color.END}")
+        lines.append(f"{Color.BOLD}Target:{Color.END} {self.phone}")
+        lines.append(f"{Color.BOLD}Session:{Color.END} {self.session_id}")
+        lines.append(f"{Color.BOLD}Scan Type:{Color.END} {self.results['scan_type'].upper()}")
+        lines.append(f"{Color.BOLD}Time:{Color.END} {datetime.fromisoformat(self.results['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append(f"{Color.BOLD}Duration:{Color.END} {self.results['scan_time']:.1f}s")
+        lines.append(f"{Color.BOLD}Confidence:{Color.END} {self.results['confidence']}%")
+        lines.append("")
+        
+        # Metadata
+        lines.append(f"{Color.BOLD}{Color.GREEN}[METADATA ANALYSIS]{Color.END}")
+        lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+        meta = self.results['metadata']
+        
+        if meta.get('valid'):
+            lines.append(f"{Color.GREEN}✓ VALID PHONE NUMBER{Color.END}")
+        else:
+            lines.append(f"{Color.YELLOW}⚠  UNVERIFIED{Color.END}")
+        
+        lines.append(f"{Color.BOLD}Carrier:{Color.END} {meta.get('carrier', 'Unknown')}")
+        lines.append(f"{Color.BOLD}Line Type:{Color.END} {meta.get('line_type', 'Unknown')}")
+        lines.append(f"{Color.BOLD}Country:{Color.END} {meta.get('country', 'Unknown')}")
+        
+        if meta.get('source'):
+            lines.append(f"{Color.BOLD}Source:{Color.END} {meta['source'].title()}")
+        
+        risk = meta.get('risk_assessment', {})
+        if risk:
+            risk_color = Color.RED if risk.get('level') == 'HIGH' else Color.YELLOW if risk.get('level') == 'MEDIUM' else Color.GREEN
+            lines.append(f"{Color.BOLD}Risk Assessment:{Color.END} {risk_color}{risk.get('level', 'Unknown')} ({risk.get('score', 0)}/100){Color.END}")
+            if risk.get('flags'):
+                lines.append(f"{Color.BOLD}Risk Flags:{Color.END} {', '.join(risk['flags'])}")
+        lines.append("")
+        
+        # Messaging Apps
+        lines.append(f"{Color.BOLD}{Color.GREEN}[MESSAGING APPS]{Color.END}")
+        lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+        apps = self.results['messaging']
+        
+        if apps.get('whatsapp', {}).get('registered'):
+            lines.append(f"{Color.GREEN}✅ WHATSAPP: REGISTERED (Confidence: {apps['whatsapp'].get('confidence', 0)}%){Color.END}")
+            lines.append(f"   {Color.CYAN}URL:{Color.END} {apps['whatsapp'].get('url', 'N/A')}")
+        else:
+            lines.append(f"{Color.RED}❌ WHATSAPP: Not detected{Color.END}")
+        
+        if apps.get('telegram', {}).get('possible'):
+            lines.append(f"{Color.YELLOW}⚠️  TELEGRAM: POSSIBLE (Confidence: {apps['telegram'].get('confidence', 0)}%){Color.END}")
+            lines.append(f"   {Color.CYAN}URL:{Color.END} {apps['telegram'].get('url', 'N/A')}")
+        else:
+            lines.append(f"{Color.RED}❌ TELEGRAM: Not detected{Color.END}")
+        
+        if apps.get('viber', {}).get('possible'):
+            lines.append(f"{Color.YELLOW}⚠️  VIBER: POSSIBLE (Confidence: {apps['viber'].get('confidence', 0)}%){Color.END}")
+        
+        if apps.get('signal', {}).get('format_valid'):
+            lines.append(f"{Color.YELLOW}ℹ️  SIGNAL: Format valid (Registration not publicly visible){Color.END}")
+        lines.append("")
+        
+        # Footprint Analysis (if full scan)
+        if self.results['scan_type'] == 'full':
+            lines.append(f"{Color.BOLD}{Color.GREEN}[ONLINE FOOTPRINT]{Color.END}")
+            lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+            footprint = self.results['footprint']
+            
+            lines.append(f"{Color.BOLD}Sources Checked:{Color.END} {', '.join(footprint.get('sources', ['None']))}")
+            lines.append(f"{Color.BOLD}Mentions Found:{Color.END} {footprint.get('mentions', 0)}")
+            
+            if footprint.get('usernames'):
+                lines.append(f"{Color.BOLD}Usernames Found ({len(footprint['usernames'])}):{Color.END}")
+                for username in footprint['usernames'][:5]:
+                    lines.append(f"  • {username}")
+            
+            if footprint.get('emails'):
+                lines.append(f"{Color.BOLD}Emails Found ({len(footprint['emails'])}):{Color.END}")
+                for email in footprint['emails'][:3]:
+                    lines.append(f"  • {email}")
+            
+            if footprint.get('social_profiles'):
+                lines.append(f"{Color.BOLD}Social Profiles ({len(footprint['social_profiles'])}):{Color.END}")
+                for profile in footprint['social_profiles'][:3]:
+                    lines.append(f"  • {profile}")
+            
+            if not any([footprint.get('usernames'), footprint.get('emails'), footprint.get('social_profiles')]):
+                lines.append(f"{Color.YELLOW}No significant online footprint found{Color.END}")
+            lines.append("")
+        
+        # Breaches (if full scan)
+        if self.results['scan_type'] == 'full' and self.results['breaches']:
+            lines.append(f"{Color.BOLD}{Color.RED}[DATA BREACHES]{Color.END}")
+            lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+            for breach in self.results['breaches'][:3]:
+                severity_color = Color.RED if breach.get('severity') == 'high' else Color.YELLOW if breach.get('severity') == 'medium' else Color.GREEN
+                lines.append(f"  • {breach.get('source', 'Unknown')}: {breach.get('details', 'N/A')}")
+                lines.append(f"    {severity_color}Severity: {breach.get('severity', 'unknown').upper()}{Color.END}")
+                lines.append(f"    Confidence: {breach.get('confidence', 0)}%")
+                lines.append("")
+        
+        # Reputation
+        lines.append(f"{Color.BOLD}{Color.GREEN}[REPUTATION ANALYSIS]{Color.END}")
+        lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+        rep = self.results['reputation']
+        
+        spam_score = rep.get('spam_score', 0)
+        trust_score = rep.get('trust_score', 100)
+        
+        if spam_score > 60:
+            spam_color = Color.RED
+            spam_text = "HIGH RISK"
+        elif spam_score > 30:
+            spam_color = Color.YELLOW
+            spam_text = "MEDIUM RISK"
+        else:
+            spam_color = Color.GREEN
+            spam_text = "LOW RISK"
+        
+        lines.append(f"{Color.BOLD}Spam Score:{Color.END} {spam_color}{spam_score}/100 {spam_text}{Color.END}")
+        lines.append(f"{Color.BOLD}Trust Score:{Color.END} {trust_score}/100")
+        lines.append(f"{Color.BOLD}Sources Checked:{Color.END} {len(rep.get('sources_checked', []))}")
+        
+        if rep.get('reports'):
+            lines.append(f"{Color.BOLD}Reports:{Color.END}")
+            for report in rep['reports'][:2]:
+                lines.append(f"  • {report.get('source', 'Unknown')}: {report.get('note', 'N/A')}")
+        
+        # Truecaller name if found
+        for report in rep.get('reports', []):
+            if report.get('name'):
+                lines.append(f"{Color.BOLD}Possible Name:{Color.END} {report['name']}")
+                break
+        lines.append("")
+        
+        # IP Correlation Disclaimer (if attempted)
+        if self.results['scan_type'] == 'full':
+            lines.append(f"{Color.BOLD}{Color.YELLOW}[IMPORTANT NOTE]{Color.END}")
+            lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+            lines.append("Direct phone-to-IP correlation is rarely possible through")
+            lines.append("public OSINT methods. Any IP findings would be:")
+            lines.append("  1. From associated accounts/domains in breaches")
+            lines.append("  2. Carrier infrastructure (shared by millions)")
+            lines.append("  3. Coincidental mentions in public data")
+            lines.append("")
+            lines.append("For reliable IP correlation, legal authorization and")
+            lines.append("direct access methods are typically required.")
+            lines.append("")
+        
+        # Recommendations
+        lines.append(f"{Color.BOLD}{Color.GREEN}[RECOMMENDATIONS]{Color.END}")
+        lines.append(f"{Color.CYAN}{'─'*50}{Color.END}")
+        conf = self.results['confidence']
+        
+        if conf > 80:
+            lines.append(f"{Color.GREEN}✅ HIGH CONFIDENCE RESULTS{Color.END}")
+            lines.append("  • Results are reliable for investigation purposes")
+            lines.append("  • Verify any found accounts/emails")
+            lines.append("  • Cross-reference with business intelligence")
+        elif conf > 60:
+            lines.append(f"{Color.YELLOW}⚠️  MEDIUM CONFIDENCE RESULTS{Color.END}")
+            lines.append("  • Verify findings with additional sources")
+            lines.append("  • Consider deeper investigation if needed")
+            lines.append("  • Cross-check with specialized tools")
+        else:
+            lines.append(f"{Color.YELLOW}⚠️  LIMITED INFORMATION{Color.END}")
+            lines.append("  • Try different phone number formatting")
+            lines.append("  • Consider using paid API services")
+            lines.append("  • Verify through alternative methods")
+        lines.append("")
+        
+        # Footer
+        lines.append(f"{Color.BLUE}{'='*70}{Color.END}")
+        lines.append(f"{Color.CYAN}Report generated by NullTrace v2.0 - Elite OSINT Tool{Color.END}")
+        lines.append(f"{Color.YELLOW}For authorized security research only{Color.END}")
+        lines.append(f"{Color.BLUE}{'='*70}{Color.END}")
+        
+        return '\n'.join(lines)
+    
+    # ===== UI METHODS =====
+    def show_report_screen(self):
+        """Display report and handle saving"""
+        self.clear_screen()
+        report = self.generate_report()
+        print(report)
+        
+        save = input(f"\n{Color.YELLOW}Save this report? (y/n): {Color.END}").lower()
+        if save == 'y':
+            self.save_report()
+        
+        input(f"\n{Color.YELLOW}Press Enter to return to menu...{Color.END}")
+    
+    def save_report(self):
+        """Save report to JSON file"""
+        if not self.phone:
+            return
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"nulltrace_{self.phone_no_plus}_{timestamp}.json"
+        
+        with open(filename, 'w') as f:
+            json.dump(self.results, f, indent=2, default=str)
+        
+        print(f"{Color.GREEN}Report saved to: {filename}{Color.END}")
+        return filename
+    
+    def configure_apis(self):
+        """Configure API keys"""
+        self.show_logo()
+        print(f"{Color.BOLD}{Color.GREEN}[API CONFIGURATION]{Color.END}")
+        print(f"{Color.CYAN}{'─'*60}{Color.END}")
+        
+        print(f"{Color.YELLOW}Current API Keys:{Color.END}")
+        for api, key in self.apis.items():
+            masked = '********' if key else '[Not Set]'
+            print(f"  {api}: {masked}")
+        
+        print(f"\n{Color.YELLOW}Free API Services:{Color.END}")
+        print("  1. Veriphone.io - 1000 free/month (recommended)")
+        print("  2. Numverify.com - Paid, but more accurate")
+        print("  3. IPQualityScore.com - Limited free tier")
+        print("  4. HaveIBeenPwned.com - Free for non-commercial")
+        
+        print(f"\n{Color.CYAN}{'─'*60}{Color.END}")
+        
+        choice = input(f"\n{Color.YELLOW}Enter API to configure (or Enter to skip): {Color.END}").lower()
+        
+        if choice in ['veriphone', '1']:
+            key = input(f"{Color.YELLOW}Enter Veriphone API key: {Color.END}").strip()
+            if key:
+                self.apis['veriphone'] = key
+                print(f"{Color.GREEN}Veriphone API key saved!{Color.END}")
+        elif choice in ['numverify', '2']:
+            key = input(f"{Color.YELLOW}Enter Numverify API key: {Color.END}").strip()
+            if key:
+                self.apis['numverify'] = key
+                print(f"{Color.GREEN}Numverify API key saved!{Color.END}")
+        elif choice in ['ipqs', '3']:
+            key = input(f"{Color.YELLOW}Enter IPQualityScore API key: {Color.END}").strip()
+            if key:
+                self.apis['ipqs'] = key
+                print(f"{Color.GREEN}IPQS API key saved!{Color.END}")
+        elif choice in ['hibp', '4']:
+            key = input(f"{Color.YELLOW}Enter HIBP API key: {Color.END}").strip()
+            if key:
+                self.apis['hibp'] = key
+                print(f"{Color.GREEN}HIBP API key saved!{Color.END}")
+        
+        input(f"\n{Color.YELLOW}Press Enter to continue...{Color.END}")
+    
+    def about_tool(self):
+        """Show about information"""
+        self.show_logo()
+        print(f"{Color.BOLD}{Color.GREEN}[ABOUT NULLTRACE v2.0]{Color.END}")
+        print(f"{Color.CYAN}{'─'*70}{Color.END}")
+        print(f"{Color.BOLD}Version:{Color.END} 2.0 (Professional Edition)")
+        print(f"{Color.BOLD}Author:{Color.END} OSINT Research Team")
+        print(f"{Color.BOLD}License:{Color.END} For Authorized Security Research Only")
+        print()
+        print(f"{Color.BOLD}{Color.YELLOW}Key Features:{Color.END}")
+        print("  • Enhanced metadata lookup (Veriphone, Numverify, IPQS)")
+        print("  • Multi-method messaging app verification")
+        print("  • Online footprint analysis (usernames, emails, profiles)")
+        print("  • Advanced breach checking (BreachDirectory, HIBP)")
+        print("  • Comprehensive reputation analysis")
+        print("  • Rate limiting & user-agent rotation")
+        print("  • Professional reporting with confidence scoring")
+        print()
+        print(f"{Color.BOLD}{Color.RED}Legal & Ethical Use:{Color.END}")
+        print("  • Only investigate numbers you own or have permission to investigate")
+        print("  • Comply with all applicable laws and regulations")
+        print("  • Respect privacy and data protection rights")
+        print("  • This tool is for security research and authorized investigations")
+        print()
+        print(f"{Color.CYAN}{'─'*70}{Color.END}")
+        input(f"\n{Color.YELLOW}Press Enter to return to menu...{Color.END}")
+    
+    def view_reports(self):
+        """View saved reports"""
+        self.show_logo()
+        print(f"{Color.BOLD}{Color.GREEN}[SAVED REPORTS]{Color.END}")
+        print(f"{Color.CYAN}{'─'*70}{Color.END}")
+        
+        reports = [f for f in os.listdir() if f.startswith('nulltrace_') and f.endswith('.json')]
+        
+        if not reports:
+            print(f"{Color.YELLOW}No saved reports found.{Color.END}")
+        else:
+            print(f"{Color.YELLOW}Found {len(reports)} report(s):{Color.END}")
+            for i, report in enumerate(reports[:10], 1):
+                print(f"{Color.YELLOW}[{i}]{Color.END} {report}")
+        
+        print(f"{Color.CYAN}{'─'*70}{Color.END}")
+        
+        if reports:
+            try:
+                choice = input(f"\n{Color.YELLOW}Enter report number to view (or Enter to skip): {Color.END}")
+                if choice.isdigit() and 1 <= int(choice) <= len(reports):
+                    with open(reports[int(choice)-1], 'r') as f:
+                        data = json.load(f)
+                    
+                    self.results = data
+                    self.phone = data['phone']
+                    self.phone_no_plus = self.phone.lstrip('+')
+                    
+                    print(f"\n{Color.GREEN}Report loaded!{Color.END}")
+                    input(f"\n{Color.YELLOW}Press Enter to view...{Color.END}")
+                    self.show_report_screen()
+            except:
+                pass
+        
+        input(f"\n{Color.YELLOW}Press Enter to return to menu...{Color.END}")
+    
+    async def run_scan_flow(self, scan_type: str):
+        """Run scan flow with phone input"""
+        self.show_logo()
+        print(f"{Color.BOLD}{Color.GREEN}[{scan_type.upper()} SCAN]{Color.END}")
+        print(f"{Color.CYAN}{'─'*70}{Color.END}")
+        
+        phone = input(f"{Color.YELLOW}Enter phone number (with country code): {Color.END}").strip()
+        
+        if not phone:
+            print(f"{Color.RED}No phone number provided.{Color.END}")
+            time.sleep(2)
+            return
+        
+        self.phone = self.clean_phone(phone)
+        self.phone_no_plus = self.phone.lstrip('+')
+        
+        if not self.phone or len(self.phone_no_plus) < 7:
+            print(f"{Color.RED}Invalid phone number format.{Color.END}")
+            time.sleep(2)
+            return
+        
+        print(f"\n{Color.CYAN}Target: {self.phone}{Color.END}")
+        print(f"{Color.CYAN}Starting {scan_type} scan...{Color.END}")
+        print(f"{Color.YELLOW}Please wait 20-40 seconds...{Color.END}")
+        print()
+        
+        try:
+            if scan_type == 'quick':
+                await self.quick_scan()
+            else:
+                await self.full_scan()
+            
+            print(f"\n{Color.GREEN}Scan complete!{Color.END}")
+            time.sleep(1)
+            self.show_report_screen()
+            
+        except Exception as e:
+            print(f"\n{Color.RED}Scan failed: {str(e)[:100]}...{Color.END}")
+            input(f"\n{Color.YELLOW}Press Enter to continue...{Color.END}")
+    
+    def main_loop(self):
+        """Main program loop"""
+        while True:
+            try:
+                self.show_menu()
+                choice = input(f"{Color.YELLOW}Select option (1-6): {Color.END}").strip()
+                
+                if choice == '1':
+                    asyncio.run(self.run_scan_flow('quick'))
+                elif choice == '2':
+                    asyncio.run(self.run_scan_flow('full'))
+                elif choice == '3':
+                    self.configure_apis()
+                elif choice == '4':
+                    self.view_reports()
+                elif choice == '5':
+                    self.about_tool()
+                elif choice == '6':
+                    self.show_logo()
+                    print(f"{Color.GREEN}Thank you for using NullTrace v2.0!{Color.END}")
+                    print(f"{Color.CYAN}Exiting...{Color.END}")
+                    time.sleep(2)
+                    self.clear_screen()
+                    break
+                else:
+                    print(f"{Color.RED}Invalid choice. Please try again.{Color.END}")
+                    time.sleep(1)
+                    
+            except KeyboardInterrupt:
+                print(f"\n{Color.RED}Operation cancelled.{Color.END}")
+                time.sleep(1)
+            except Exception as e:
+                print(f"\n{Color.RED}Error: {str(e)[:50]}...{Color.END}")
+                time.sleep(2)
+
+# ===== MAIN =====
+if __name__ == "__main__":
+    # Check dependencies
+    try:
+        import aiohttp
+        import phonenumbers
+    except ImportError:
+        print("Error: Required packages not installed.")
+        print("Install with: pip install aiohttp phonenumbers")
+        sys.exit(1)
+    
+    # Run NullTrace
+    try:
+        tool = NullTrace()
+        tool.main_loop()
+    except KeyboardInterrupt:
+        print(f"\n{Color.CYAN}NullTrace terminated.{Color.END}")
+    except Exception as e:
+        print(f"\n{Color.RED}Fatal error: {e}{Color.END}")
+        sys.exit(1)
